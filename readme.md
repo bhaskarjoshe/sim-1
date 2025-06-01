@@ -1,166 +1,144 @@
-# Robot Simulator Project
-## Overview
-This project integrates a Three.js-based robot simulator with a Python WebSocket server and Flask API endpoints. The simulator supports both absolute and relative movement commands, while collision detection is handled on the client side (in the Three.js code).
+# Autonomous Robot Navigation System
 
+This system implements autonomous collision-free route planning for a 3D robot simulator using computer vision and path planning algorithms.
+
+## System Overview
+
+The system consists of two main modules:
+
+1. **vision.py** - Module for processing captured images and providing navigation instructions to the robot
+2. **path_handler.py** - Autonomous route-finding logic with pathfinding algorithms
 
 ## Prerequisites
-- **Python 3.7+**
-- **pip** (Python package installer)
-- A modern web browser (e.g., Chrome, Firefox) to run the Three.js simulator
-- (Optional) An HTTP client (e.g., curl, Postman) for testing the Flask API endpoints
 
-## Required Python Packages
-Install the following packages using pip:
-```bash
-pip install websockets flask
-```
-
-## Setup and Running the Project 
-- git clone git@github.com:terafac/sim-1.git
-- cd sim-1
-- Install Dependencies: Open a terminal in the project directory and run:
-```bash
-pip install websockets flask
-``` 
-- Run the Python Server:
-- In the terminal, navigate to the project directory.
-
-- Start the server by running:
-```bash
-python server.py
-```
-The server will start:
-
-A WebSocket server on ws://localhost:8080
-
-A Flask API on port 5000
-
-Open the Three.js Simulator:
-
-Open the index.html file in your web browser.
-
-To run from terminal on port 8000, you can use the command
+Make sure you have the following Python packages installed:
 
 ```bash
-python -m http.server
+pip install opencv-python numpy pillow websockets asyncio requests heapq math
 ```
 
-The simulator will automatically connect to the WebSocket server at ws://localhost:8080.
+## Setup Instructions
 
-Check your browser’s console or the server terminal for connection messages (e.g., "Client connected via WebSocket").
+1. **Start the Simulator Server**
+   ```bash
+   python server.py
+   ```
+   This will start:
+   - WebSocket server on `ws://localhost:8080`
+   - Flask API server on `http://localhost:5000`
+   - Web interface at `http://localhost:5000`
 
-# API Endpoints and Simulator Responses
+2. **Open the Simulator**
+   - Navigate to `http://localhost:5000` in your browser
+   - You should see the 3D robot simulator with the robot at the origin
+   - Green boxes represent obstacles in the environment
 
-You can control the robot by sending HTTP POST requests to the Flask API endpoints.
+3. **Run the Autonomous Navigation**
+   ```bash
+   python path_handler.py
+   ```
+   OR use the launcher script:
+   ```bash
+   python run_autonomous.py --goal-x 25 --goal-z 25
+   ```
 
----
+## How It Works
 
-## 1. Absolute Movement
+### Vision System (`vision.py`)
+- Connects to the WebSocket server to receive real-time data
+- Captures images from the robot's camera using `/capture` API endpoint
+- Processes images to detect obstacles and free paths
+- Provides movement recommendations based on visual analysis
+- Monitors for collision messages from the simulator
 
-- **Endpoint:** `/move`
-- **Method:** `POST`
+### Path Planning (`path_handler.py`)
+- Implements A* algorithm for optimal pathfinding
+- Implements RRT (Rapidly-exploring Random Tree) as backup
+- Maintains a grid-based map of known obstacles
+- Plans collision-free routes from current position to goal
+- Executes autonomous navigation with real-time replanning
 
-### Payload Example:
-```json
-{
-  "x": 10,
-  "z": -5
-}
+### Key Features
+- **Fully Autonomous**: No manual input required after launch
+- **Collision Avoidance**: Uses both visual processing and collision feedback
+- **Adaptive Planning**: Switches between A* and RRT algorithms as needed
+- **Real-time Replanning**: Updates path when obstacles are detected
+- **WebSocket Communication**: Real-time bidirectional communication with simulator
 
-```
-## Curl Example:
+## Usage
+
+### Basic Usage
 ```bash
-curl -X POST -H "Content-Type: application/json" -d '{"x": 10, "z": -5}' http://localhost:5000/move
-```
-## 2. Relative Movement
-
-
-- **Endpoint:** `/move_rel`
-- **Method:** `POST`
-
-### Payload Example:
-```json
-{
-  "turn": 45,
-  "distance": 10
-}
-
-```
-## Curl Example:
-```bash 
-curl -X POST -H "Content-Type: application/json" -d '{"turn": 45, "distance": 10}' http://localhost:5000/move_rel
+# Start with default goal (25, 25)
+python path_handler.py
 ```
 
-## 3.Stop Command
-
-
-- **Endpoint:** `/stop`
-- **Method:** `POST`
-
-## Curl Example:
-```bash 
-curl -X POST http://localhost:5000/stop
-```
-## 4. Capture Image
-
-
-- **Endpoint:** `/capture`
-- **Method:** `POST`
-
-## Curl Example 
-```bask 
-curl -X POST http://localhost:5000/capture
-```
-
-# Simulator Responses
-The Three.js simulator sends back WebSocket messages. Examples include:
-
-## 1. Absolute Move Confirmation:
-```bask 
-{
-  "type": "confirmation",
-  "message": "Move command received",
-  "target": { "x": 10, "y": 0, "z": -5 }
-}
-```
-## 2. Relative Move Confirmation:
+### Custom Goal Position
 ```bash
-{
-  "type": "confirmation",
-  "message": "Relative move command executed",
-  "target": { "angle": 45, "distance": 10 }
-}
-```
-## 3. Collision Notification
-```bash
-{
-  "type": "collision",
-  "collision": true,
-  "position": { "x": <current_x>, "y": <current_y>, "z": <current_z> },
-  "obstacle": { "position": { "x": <obs_x>, "y": <obs_y>, "z": <obs_z> } }
-}
+python run_autonomous.py --goal-x 30 --goal-z -15
 ```
 
-## 4. Capture Image Response:
-```bash 
-{
-  "type": "capture_image_response",
-  "image": "<Base64 encoded PNG image>",
-  "timestamp": <timestamp>,
-  "position": { "x": <current_x>, "y": <current_y>, "z": <current_z> }
-}
-```
-#Additional Information
+## API Endpoints Used
 
-## Collision Detection
-The Three.js simulator continuously checks for collisions between the robot and obstacles. When a collision is detected, the simulator stops the robot and sends a collision message via WebSocket.
+The system interacts with these Flask endpoints:
 
-## Flask & WebSocket Integration
-The Flask API (running on port 5000) communicates with the WebSocket server (running on port 8080) via shared global state and the asyncio event loop.
+- `POST /capture` - Capture image from robot camera
+- `POST /move` - Move robot to absolute position (x, z coordinates)
+- `POST /move_rel` - Move robot relative to current position (turn angle, distance)
+- `POST /stop` - Stop robot movement
+
+## WebSocket Messages
+
+The system handles these WebSocket message types:
+
+- `capture_image_response` - Contains base64 encoded image data
+- `collision` - Collision detection notification
+- `confirmation` - Movement completion confirmation
+
+## Algorithm Details
+
+### A* Pathfinding
+- Grid-based pathfinding with 8-directional movement
+- Uses Euclidean distance heuristic
+- Optimal for known static environments
+
+### RRT (Rapidly-exploring Random Tree)
+- Sampling-based algorithm for complex environments
+- Better for dynamic or unknown obstacles
+- Falls back when A* fails
+
+### Vision Processing
+- HSV color space analysis for obstacle detection
+- Sector-based analysis for movement direction recommendations
+- Real-time image processing from robot's perspective
 
 ## Troubleshooting
-Port Availability: Ensure that ports 5000 and 8080 are free.
 
-Browser Console: Check for errors if the simulator does not load or connect.
+### Common Issues
 
-Firewall/Antivirus: Verify that your firewall or antivirus software is not blocking the connections.
+1. **"No connected simulators" error**
+   - Ensure `server.py` is running
+   - Check that WebSocket connection is established
+
+2. **Robot doesn't move**
+   - Verify Flask server is running on port 5000
+   - Check browser console for WebSocket errors
+
+3. **Path planning fails**
+   - Goal position might be inside an obstacle
+   - Try different goal coordinates
+
+4. **Image processing errors**
+   - Ensure OpenCV and PIL are properly installed
+   - Check image capture is working via `/capture` endpoint
+
+## Expected Behavior
+
+When running successfully, you should see:
+
+1. Robot starts at origin (0, 0, 0)
+2. System captures images and analyzes environment
+3. Path is planned avoiding green obstacle boxes
+4. Robot moves autonomously toward goal
+5. Real-time replanning occurs if collisions detected
+6. Robot reaches goal without manual intervention
